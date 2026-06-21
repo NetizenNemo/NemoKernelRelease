@@ -225,13 +225,16 @@ object FlashEngine {
     }
 
     /**
-     * Copy a file or content URI to temp directory.
-     * Uses Android Context to resolve content:// URIs.
+     * Copy a file or content URI to temp dir.
+     * Uses app cache dir for reliable write access, then copies to work dir via root.
      */
     fun copyToTemp(context: android.content.Context, uri: android.net.Uri, fileName: String = "kernel.zip"): String? {
         return try {
-            init()
-            val target = File(NINC_DIR, fileName)
+            // Use app cache dir (always writable by the app process)
+            val cacheDir = File(context.cacheDir, "ninc")
+            cacheDir.mkdirs()
+            val target = File(cacheDir, fileName)
+
             context.contentResolver.openInputStream(uri)?.use { input ->
                 target.outputStream().use { output ->
                     input.copyTo(output)
@@ -240,8 +243,13 @@ object FlashEngine {
                 // Fallback: try as file path
                 File(uri.path ?: return null).inputStream().use { it.copyTo(target.outputStream()) }
             }
-            target.setExecutable(true)
-            target.absolutePath
+
+            // Copy to root-accessible working dir via shell
+            init()
+            exec("cp -f ${target.absolutePath} $NINC_DIR/$fileName")
+            exec("chmod 644 $NINC_DIR/$fileName")
+
+            "$NINC_DIR/$fileName"
         } catch (e: Exception) {
             Log.e(TAG, "copyToTemp failed", e)
             null
