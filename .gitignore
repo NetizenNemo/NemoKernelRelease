@@ -1,0 +1,18 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Reference projects
+.ref-projects/
+*.zip
+
+# Reasonix agent internals
+.reasonix/
+SKILL.md

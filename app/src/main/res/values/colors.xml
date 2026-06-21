@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="kernelflasher_primary">#1976D2</color>
+    <color name="kernelflasher_on_primary">#FFFFFF</color>
+    <color name="kernelflasher_background">#FFFFFF</color>
+</resources>
