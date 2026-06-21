@@ -156,29 +156,33 @@ object FlashEngine {
         // Set executable permissions
         exec("chmod -R 755 $akDir/tools/")
 
-        // Build the AK3 boot script
-        // ak3-core.sh expects BOOTMODE=true, OUTFD set
-        // It reads BLOCK from anykernel.sh, dumps boot, replaces Image, repacks, writes
+        // Build the AK3 boot script (use cat heredoc via shell to avoid Kotlin $ escaping)
         val bootScript = """
-            export BOOTMODE=true
-            export OUTFD=/proc/self/fd/1
-            export AKHOME=$akDir
-            export ANDROID_ROOT=/system
-            cd $akDir
+export BOOTMODE=true
+export OUTFD=1
+export AKHOME=$akDir
+export ANDROID_ROOT=/system
+cd $akDir || exit 1
 
-            # Source ak3-core and run
-            . tools/ak3-core.sh
+chmod -R 755 tools/
 
-            # Override BLOCK from detected partition
-            BLOCK=${bootPartition.blockPath}
-            IS_SLOT_DEVICE=${if (bootPartition.isAb) "1" else "0"}
+. tools/ak3-core.sh || { echo "Failed to source ak3-core.sh"; exit 1; }
+[ -f anykernel.sh ] && . anykernel.sh
 
-            ui_print "NINC: Starting AK3 flash..."
-            dump_boot
-            ui_print "NINC: Boot image dumped, replacing kernel..."
-            write_boot
-            ui_print "NINC: Flash complete!"
-        """.trimIndent()
+BLOCK=${bootPartition.blockPath}
+IS_SLOT_DEVICE=${if (bootPartition.isAb) "1" else "0"}
+
+echo ""
+echo "--- NINC AK3 Flasher ---"
+echo "Target: ${'$'}BLOCK"
+echo ""
+
+dump_boot || { echo "dump_boot failed!"; exit 1; }
+write_boot || { echo "write_boot failed!"; exit 1; }
+
+echo ""
+echo "Done!"
+""".trimIndent()
 
         // Write the boot script and execute
         exec("cat > $NINC_DIR/ninc-boot.sh << 'NINCSCRIPT'\n$bootScript\nNINCSCRIPT")
@@ -288,14 +292,14 @@ object FlashEngine {
         exec(if (reason.isEmpty()) "reboot" else "reboot $reason")
     }
 
-    // --- Shell helpers ---
+    // --- Shell helpers (package-visible for BackupManager) ---
 
-    private fun exec(cmd: String): Boolean = Shell.cmd(cmd).exec().isSuccess
+    fun exec(cmd: String): Boolean = Shell.cmd(cmd).exec().isSuccess
+
+    fun execGetOutput(cmd: String): String =
+        Shell.cmd(cmd).exec().out.joinToString("\n").trim()
 
     private fun execWithResult(cmd: String): Shell.Result = Shell.cmd(cmd).exec()
-
-    private fun execGetOutput(cmd: String): String =
-        Shell.cmd(cmd).exec().out.joinToString("\n").trim()
 
     /**
      * Execute command with real-time log streaming

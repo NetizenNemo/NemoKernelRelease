@@ -1,6 +1,5 @@
 package com.nemo.updater.flash
 
-import android.os.Environment
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -8,54 +7,52 @@ import java.util.Locale
 
 /**
  * Manages kernel backups and restores.
- * Backup location: /sdcard/NINC/backups/
+ * Backup location: /data/local/tmp/ninc/backups/ (root-accessible)
  */
 object BackupManager {
 
-    private val backupDir: File
-        get() = File(
-            Environment.getExternalStorageDirectory(),
-            "NINC/backups"
-        ).also { it.mkdirs() }
+    private const val BACKUP_DIR = "/data/local/tmp/ninc/backups"
 
     private val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+
+    /**
+     * Ensure backup dir exists (via root shell)
+     */
+    fun ensureDir(): Boolean {
+        return FlashEngine.exec("mkdir -p $BACKUP_DIR && chmod 755 $BACKUP_DIR")
+    }
 
     /**
      * Generate a backup file path with timestamp
      */
     fun generateBackupPath(): String {
+        ensureDir()
         val timestamp = dateFormat.format(Date())
-        return File(backupDir, "boot_backup_${timestamp}.img").absolutePath
+        return "$BACKUP_DIR/boot_backup_${timestamp}.img"
     }
 
     /**
      * List all available backups
      */
-    fun listBackups(): List<File> {
-        return backupDir.listFiles { f -> f.name.endsWith(".img") }
-            ?.sortedByDescending { it.lastModified() }
-            ?: emptyList()
+    fun listBackups(): List<String> {
+        val out = FlashEngine.execGetOutput("ls -1 $BACKUP_DIR/*.img 2>/dev/null")
+        return out.lines().filter { it.isNotBlank() }.sortedDescending()
     }
 
     /**
-     * Get backup file by index (0 = newest)
+     * Get size of a backup file via root
      */
-    fun getBackup(index: Int = 0): File? {
-        val backups = listBackups()
-        return backups.getOrNull(index)
+    fun getBackupSize(): Long {
+        val sizes = FlashEngine.execGetOutput(
+            "du -cb $BACKUP_DIR/*.img 2>/dev/null | tail -1 | cut -f1"
+        )
+        return sizes.toLongOrNull() ?: 0
     }
 
     /**
      * Delete a backup file
      */
-    fun deleteBackup(file: File): Boolean {
-        return file.delete()
-    }
-
-    /**
-     * Get total backup size
-     */
-    fun getBackupSize(): Long {
-        return listBackups().sumOf { it.length() }
+    fun deleteBackup(path: String): Boolean {
+        return FlashEngine.exec("rm -f '$path'")
     }
 }
