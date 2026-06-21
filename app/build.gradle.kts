@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.nemo.kernelflasher"
+    namespace = "com.nemo.updater"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.nemo.kernelflasher"
+        applicationId = "com.nemo.updater"
         minSdk = 33
         targetSdk = 37
         versionCode = 1

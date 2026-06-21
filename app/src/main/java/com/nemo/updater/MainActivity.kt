@@ -1,4 +1,4 @@
-package com.nemo.kernelflasher
+package com.nemo.updater
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -20,12 +20,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import com.nemo.kernelflasher.ui.navigation.FloatingNavigationBar
-import com.nemo.kernelflasher.ui.navigation.NavTab
-import com.nemo.kernelflasher.ui.screen.HomeScreen
-import com.nemo.kernelflasher.ui.screen.KernelScreen
-import com.nemo.kernelflasher.ui.screen.SettingsScreen
-import com.nemo.kernelflasher.ui.theme.AppTheme
+import com.nemo.updater.ui.navigation.FloatingNavigationBar
+import com.nemo.updater.ui.navigation.NavTab
+import com.nemo.updater.ui.screen.HomeScreen
+import com.nemo.updater.ui.screen.KernelScreen
+import com.nemo.updater.ui.screen.SettingsScreen
+import com.nemo.updater.ui.theme.AppTheme
 
 class MainActivity : ComponentActivity() {
 

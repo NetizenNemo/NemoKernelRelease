@@ -1,4 +1,4 @@
-package com.nemo.kernelflasher.ui.theme
+package com.nemo.updater.ui.theme
 
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme

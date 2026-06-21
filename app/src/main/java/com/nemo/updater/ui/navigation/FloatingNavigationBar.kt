@@ -1,4 +1,4 @@
-package com.nemo.kernelflasher.ui.navigation
+package com.nemo.updater.ui.navigation
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween

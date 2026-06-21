@@ -1,4 +1,4 @@
-package com.nemo.kernelflasher.ui.navigation
+package com.nemo.updater.ui.navigation
 
 import androidx.compose.ui.graphics.vector.ImageVector
 import top.yukonga.miuix.kmp.icon.MiuixIcons

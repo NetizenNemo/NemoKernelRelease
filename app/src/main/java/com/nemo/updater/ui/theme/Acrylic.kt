@@ -1,4 +1,4 @@
-package com.nemo.kernelflasher.ui.theme
+package com.nemo.updater.ui.theme
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember

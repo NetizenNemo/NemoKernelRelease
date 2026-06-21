@@ -1,4 +1,4 @@
-package com.nemo.kernelflasher
+package com.nemo.updater
 
 import android.app.Application
 
