@@ -44,14 +44,16 @@ fun KernelScreen() {
     val scope = rememberCoroutineScope()
     var log by remember { mutableStateOf("") }
     var isFlashing by remember { mutableStateOf(false) }
-    var selectedFile by remember { mutableStateOf<String?>(null) }
+    var selectedUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedFileName by remember { mutableStateOf<String?>(null) }
     var flashResult by remember { mutableStateOf<FlashResult?>(null) }
 
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            selectedFile = it.toString()
+            selectedUri = it
+            selectedFileName = it.lastPathSegment
             log = "已选择: ${it.lastPathSegment}\n"
             flashResult = null
         }
@@ -79,7 +81,7 @@ fun KernelScreen() {
                         enabled = !isFlashing,
                     ) {
                         Text(
-                            if (selectedFile != null) "已选: ${selectedFile?.substringAfterLast('/')}"
+                            if (selectedUri != null) "已选: $selectedFileName"
                             else "选择 AK3 压缩包 (.zip)"
                         )
                     }
@@ -97,8 +99,8 @@ fun KernelScreen() {
                                 engine.init()
 
                                 // Copy file to temp
-                                val filePath = selectedFile
-                                if (filePath == null) {
+                                val fileUri = selectedUri
+                                if (fileUri == null) {
                                     log += "❌ 未选择文件\n"
                                     flashResult = FlashResult(false, "未选择文件")
                                     isFlashing = false
@@ -107,7 +109,7 @@ fun KernelScreen() {
 
                                 log += "📦 复制文件到临时目录...\n"
                                 val tempPath = withContext(Dispatchers.IO) {
-                                    engine.copyToTemp(filePath)
+                                    engine.copyToTemp(context, fileUri)
                                 }
                                 if (tempPath == null) {
                                     log += "❌ 文件复制失败\n"
@@ -165,7 +167,7 @@ fun KernelScreen() {
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = selectedFile != null && !isFlashing,
+                        enabled = selectedUri != null && !isFlashing,
                     ) {
                         Text(if (isFlashing) "刷写中..." else "刷写内核")
                     }

@@ -225,13 +225,21 @@ object FlashEngine {
     }
 
     /**
-     * Copy a file to temp dir
+     * Copy a file or content URI to temp directory.
+     * Uses Android Context to resolve content:// URIs.
      */
-    fun copyToTemp(sourcePath: String, fileName: String = "kernel.zip"): String? {
+    fun copyToTemp(context: android.content.Context, uri: android.net.Uri, fileName: String = "kernel.zip"): String? {
         return try {
             init()
             val target = File(NINC_DIR, fileName)
-            File(sourcePath).inputStream().use { it.copyTo(target.outputStream()) }
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                target.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            } ?: run {
+                // Fallback: try as file path
+                File(uri.path ?: return null).inputStream().use { it.copyTo(target.outputStream()) }
+            }
             target.setExecutable(true)
             target.absolutePath
         } catch (e: Exception) {
