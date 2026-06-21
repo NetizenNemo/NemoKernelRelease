@@ -19,3 +19,4 @@ SKILL.md
 
 # Build artifacts
 app/build/
+.ref-kernelflasher/

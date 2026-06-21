@@ -6,13 +6,6 @@ import java.io.File
 
 /**
  * Core flash engine supporting both AnyKernel3 (.zip) and raw boot images (.img).
- *
- * AnyKernel3 flow:
- *   Extract zip → source ak3-core.sh → dump_boot (split current boot) →
- *   replace kernel (Image/zImage) → write_boot (repack + dd flash)
- *
- * Raw .img flow:
- *   dd if=new.img of=/dev/block/boot
  */
 object FlashEngine {
 
@@ -20,10 +13,12 @@ object FlashEngine {
     private const val NINC_DIR = "/data/local/tmp/ninc"
 
     /**
-     * Initialize working directory
+     * Ensure root shell is available and working dir exists.
      */
-    fun init(): Boolean {
-        return exec("rm -rf $NINC_DIR && mkdir -p $NINC_DIR")
+    fun ensureReady(): Boolean {
+        val su = execGetOutput("command -v su")
+        if (su.isBlank()) return false
+        return exec("mkdir -p $NINC_DIR && chmod 755 $NINC_DIR")
     }
 
     /**
@@ -48,7 +43,7 @@ object FlashEngine {
         )
 
         for (path in paths) {
-            if (execGetOutput("test -e $path && echo exists") == "exists") {
+            if (execGetOutput("test -e $path && echo 1") == "1") {
                 Log.i(TAG, "Found boot partition: $path")
                 return BootPartition("boot$slotSuffix", path, isAb, currentSlot, slotSuffix)
             }
@@ -69,11 +64,11 @@ object FlashEngine {
      */
     fun backupBoot(bootPartition: BootPartition, backupPath: String): FlashResult {
         Log.i(TAG, "Backing up boot to $backupPath")
-        val result = execWithResult("dd if=${bootPartition.blockPath} of=$backupPath bs=1048576")
-        return if (result.isSuccess) {
+        val (code, out, err) = suExec("dd if=${bootPartition.blockPath} of=$backupPath bs=1048576")
+        return if (code == 0) {
             FlashResult(true, "Backup saved to $backupPath")
         } else {
-            FlashResult(false, "Backup failed: ${result.err.joinToString("\n")}")
+            FlashResult(false, "Backup failed: $err")
         }
     }
 
@@ -87,48 +82,37 @@ object FlashEngine {
     ): FlashResult {
         val file = File(filePath)
         if (!file.exists()) return FlashResult(false, "文件不存在: $filePath")
+        ensureReady()
 
         return if (file.name.endsWith(".zip", ignoreCase = true)) {
             flashAk3Zip(filePath, bootPartition, onLog)
-        } else if (file.name.endsWith(".img", ignoreCase = true)) {
-            flashRawImg(filePath, bootPartition, onLog)
         } else {
-            // Try as AK3 zip first if extension unknown
-            flashAk3Zip(filePath, bootPartition, onLog)
+            flashRawImg(filePath, bootPartition, onLog)
         }
     }
 
     /**
-     * Flash via AnyKernel3 zip: extract → split_boot → write_boot
+     * Flash via AnyKernel3 zip
      */
     private fun flashAk3Zip(
         zipPath: String,
         bootPartition: BootPartition,
         onLog: (String) -> Unit,
     ): FlashResult {
-        init()
-        val akDir = File("$NINC_DIR/ak3")
-        akDir.mkdirs()
+        val akDir = "$NINC_DIR/ak3"
+        exec("rm -rf $akDir && mkdir -p $akDir")
 
-        onLog("📦 解析 AK3 压缩包...\n")
-
-        // Extract zip using Java's built-in ZipFile (no external unzip needed)
+        onLog("📦 解压 AK3 压缩包...\n")
         val extractOk = try {
             val zipFile = java.util.zip.ZipFile(zipPath)
             var count = 0
             val entries = zipFile.entries()
             while (entries.hasMoreElements()) {
                 val entry = entries.nextElement()
-                val targetFile = File(akDir, entry.name)
-                if (entry.isDirectory) {
-                    targetFile.mkdirs()
-                } else {
-                    targetFile.parentFile?.mkdirs()
-                    zipFile.getInputStream(entry).use { input ->
-                        targetFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
+                val f = File(akDir, entry.name)
+                if (entry.isDirectory) { f.mkdirs() } else {
+                    f.parentFile?.mkdirs()
+                    zipFile.getInputStream(entry).use { i -> f.outputStream().use { o -> i.copyTo(o) } }
                     count++
                 }
             }
@@ -136,68 +120,53 @@ object FlashEngine {
             onLog("✅ 解压完成: $count 个文件\n")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "unzip failed", e)
             onLog("❌ 解压失败: ${e.message}\n")
-            false
+            return FlashResult(false, "解压失败: ${e.message}")
         }
-        if (!extractOk) {
-            return FlashResult(false, "解压 AK3 失败")
+        if (!extractOk) return FlashResult(false, "解压失败")
+
+        exec("chmod -R 755 $akDir/tools/ 2>/dev/null")
+
+        // Verify
+        if (execGetOutput("test -f $akDir/tools/ak3-core.sh && echo 1") != "1") {
+            return FlashResult(false, "无效 AK3: 缺少 tools/ak3-core.sh")
         }
 
-        // Verify key files exist
-        val coreScript = "$akDir/tools/ak3-core.sh"
-        if (execGetOutput("test -f $coreScript && echo 1") != "1") {
-            return FlashResult(false, "无效的 AK3 包: 缺少 tools/ak3-core.sh")
-        }
+        onLog("⚙️ 执行 AK3 刷写...\n")
 
-        onLog("✅ 解压完成\n")
-        onLog("⚙️ 执行 AK3 刷写脚本...\n")
-
-        // Set executable permissions
-        exec("chmod -R 755 $akDir/tools/")
-
-        // Build the AK3 boot script (use cat heredoc via shell to avoid Kotlin $ escaping)
-        val bootScript = """
+        // Write boot script directly (avoid shell heredoc escaping issues)
+        val scriptFile = File("$NINC_DIR/ninc-boot.sh")
+        scriptFile.writeText("""
+#!/sbin/sh
 export BOOTMODE=true
 export OUTFD=1
 export AKHOME=$akDir
 export ANDROID_ROOT=/system
 cd $akDir || exit 1
-
-chmod -R 755 tools/
-
-. tools/ak3-core.sh || { echo "Failed to source ak3-core.sh"; exit 1; }
+chmod -R 755 tools/ 2>/dev/null
+. tools/ak3-core.sh || exit 1
 [ -f anykernel.sh ] && . anykernel.sh
-
 BLOCK=${bootPartition.blockPath}
 IS_SLOT_DEVICE=${if (bootPartition.isAb) "1" else "0"}
-
-echo ""
-echo "--- NINC AK3 Flasher ---"
 echo "Target: ${'$'}BLOCK"
 echo ""
+dump_boot
+echo "dump_boot OK"
+write_boot
+echo "write_boot OK"
+exit 0
+""".trimIndent())
+        exec("chmod 755 ${scriptFile.absolutePath}")
 
-dump_boot || { echo "dump_boot failed!"; exit 1; }
-write_boot || { echo "write_boot failed!"; exit 1; }
+        // Execute via su -c
+        val (code, stdout, stderr) = suExecWithLog("sh ${scriptFile.absolutePath}", onLog)
 
-echo ""
-echo "Done!"
-""".trimIndent()
+        exec("rm -rf $akDir ${scriptFile.absolutePath}")
 
-        // Write the boot script and execute
-        exec("cat > $NINC_DIR/ninc-boot.sh << 'NINCSCRIPT'\n$bootScript\nNINCSCRIPT")
-        exec("chmod 755 $NINC_DIR/ninc-boot.sh")
-
-        // Run with root shell, streaming output
-        val result = execWithStream("sh $NINC_DIR/ninc-boot.sh", onLog)
-
-        // Clean up
-        exec("rm -rf $akDir $NINC_DIR/ninc-boot.sh")
-
-        return if (result.isSuccess) {
+        return if (code == 0) {
             FlashResult(true, "AK3 刷写成功！建议重启", showReboot = true)
         } else {
-            FlashResult(false, "AK3 刷写失败: ${result.err.joinToString("\n")}")
+            FlashResult(false, "AK3 刷写失败 (code=$code): $stderr")
         }
     }
 
@@ -209,74 +178,49 @@ echo "Done!"
         bootPartition: BootPartition,
         onLog: (String) -> Unit,
     ): FlashResult {
-        init()
-        val file = File(imgPath)
-        onLog("📁 原始 boot 镜像: ${file.length()} bytes\n")
+        onLog("📁 镜像大小: ${File(imgPath).length()} bytes\n")
         onLog("📌 目标: ${bootPartition.blockPath}\n\n")
 
-        // Remount rw
-        exec("mount -o remount,rw / 2>/dev/null")
-
         onLog("⚙️ 刷写中...\n")
-        val ddResult = execWithResult("dd if=$imgPath of=${bootPartition.blockPath} bs=1048576 conv=fsync")
+        val (code, _, err) = suExec("dd if=$imgPath of=${bootPartition.blockPath} bs=1048576 conv=fsync")
 
-        if (!ddResult.isSuccess) {
-            onLog("❌ 刷写失败: ${ddResult.err.joinToString("\n")}\n")
-            return FlashResult(false, "dd 刷写失败: ${ddResult.err.joinToString("\n")}")
+        if (code != 0) {
+            onLog("❌ 失败: $err\n")
+            return FlashResult(false, "dd 失败: $err")
         }
-
         onLog("✅ 刷写成功！\n")
 
-        // A/B: also flash to inactive slot
+        // A/B
         if (bootPartition.isAb && bootPartition.slotSuffix != null) {
-            val otherSlot = if (bootPartition.slotSuffix == "_a") "_b" else "_a"
-            val otherPath = bootPartition.blockPath.replace(bootPartition.slotSuffix, otherSlot)
-
+            val other = if (bootPartition.slotSuffix == "_a") "_b" else "_a"
+            val otherPath = bootPartition.blockPath.replace(bootPartition.slotSuffix, other)
             if (execGetOutput("test -e $otherPath && echo 1") == "1") {
-                onLog("📌 双槽位设备，同步刷写 $otherSlot...\n")
-                execWithResult("dd if=$imgPath of=$otherPath bs=1048576 conv=fsync")
-                onLog("✅ 槽位 $otherSlot 完成\n")
+                onLog("📌 同步刷写槽位 $other...\n")
+                suExec("dd if=$imgPath of=$otherPath bs=1048576 conv=fsync")
+                onLog("✅ 完成\n")
             }
         }
 
         return FlashResult(true, "刷写成功！建议重启", showReboot = true)
     }
 
-    /**
-     * Restore boot from a backup .img file
-     */
     fun restoreBoot(backupPath: String, bootPartition: BootPartition, onLog: (String) -> Unit = {}): FlashResult {
-        val file = File(backupPath)
-        if (!file.exists()) return FlashResult(false, "备份文件不存在: $backupPath")
-        onLog("♻️ 从备份恢复...\n")
+        if (execGetOutput("test -f $backupPath && echo 1") != "1")
+            return FlashResult(false, "备份不存在: $backupPath")
+        onLog("♻️ 恢复备份...\n")
         return flashRawImg(backupPath, bootPartition, onLog)
     }
 
-    /**
-     * Copy a file or content URI to temp dir.
-     * Uses app cache dir for reliable write access, then copies to work dir via root.
-     */
     fun copyToTemp(context: android.content.Context, uri: android.net.Uri, fileName: String = "kernel.zip"): String? {
         return try {
-            // Use app cache dir (always writable by the app process)
-            val cacheDir = File(context.cacheDir, "ninc")
-            cacheDir.mkdirs()
+            val cacheDir = File(context.cacheDir, "ninc").also { it.mkdirs() }
             val target = File(cacheDir, fileName)
+            context.contentResolver.openInputStream(uri)?.use { i ->
+                target.outputStream().use { o -> i.copyTo(o) }
+            } ?: File(uri.path ?: return null).inputStream().use { it.copyTo(target.outputStream()) }
 
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                target.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            } ?: run {
-                // Fallback: try as file path
-                File(uri.path ?: return null).inputStream().use { it.copyTo(target.outputStream()) }
-            }
-
-            // Copy to root-accessible working dir via shell
-            init()
-            exec("cp -f ${target.absolutePath} $NINC_DIR/$fileName")
-            exec("chmod 644 $NINC_DIR/$fileName")
-
+            ensureReady()
+            exec("cp -f ${target.absolutePath} $NINC_DIR/$fileName && chmod 644 $NINC_DIR/$fileName")
             "$NINC_DIR/$fileName"
         } catch (e: Exception) {
             Log.e(TAG, "copyToTemp failed", e)
@@ -285,36 +229,54 @@ echo "Done!"
     }
 
     fun hasRoot(): Boolean = try {
-        execWithResult("id -u").out.firstOrNull() == "0"
+        execGetOutput("id -u") == "0"
     } catch (_: Exception) { false }
 
     fun reboot(reason: String = "") {
-        exec(if (reason.isEmpty()) "reboot" else "reboot $reason")
+        suExec(if (reason.isEmpty()) "reboot" else "reboot $reason")
     }
 
-    // --- Shell helpers (package-visible for BackupManager) ---
-
-    fun exec(cmd: String): Boolean = Shell.cmd(cmd).exec().isSuccess
-
-    fun execGetOutput(cmd: String): String =
-        Shell.cmd(cmd).exec().out.joinToString("\n").trim()
-
-    private fun execWithResult(cmd: String): Shell.Result = Shell.cmd(cmd).exec()
+    // --- Core shell execution with explicit su ---
 
     /**
-     * Execute command with real-time log streaming
+     * Execute a command as root via su -c, return (code, stdout, stderr)
      */
-    private fun execWithStream(cmd: String, onLog: (String) -> Unit): Shell.Result {
+    private fun suExec(cmd: String): Triple<Int, String, String> {
+        // Write exit code to a temp file to capture it reliably
+        val result = Shell.cmd("su -c '$cmd'; echo EXITCODE:${'$'}? | tee /data/local/tmp/ninc_exit.${'$'}$").exec()
+        val all = result.out.joinToString("\n").trim()
+        val codeLine = all.lines().lastOrNull { it.startsWith("EXITCODE:") }
+        val code = codeLine?.removePrefix("EXITCODE:")?.toIntOrNull() ?: result.code
+        return Triple(code, all, result.err.joinToString("\n"))
+    }
+
+    /**
+     * Execute command with streaming log output
+     */
+    private fun suExecWithLog(cmd: String, onLog: (String) -> Unit): Triple<Int, String, String> {
+        val safeCmd = cmd.replace("'", "'\\''")
+        val fullCmd = "su -c '$safeCmd'; echo EXITCODE:${'$'}?"
         val outCallback = object : com.topjohnwu.superuser.CallbackList<String?>() {
             override fun onAddElement(s: String?) {
-                s?.let { onLog("$it\n") }
+                if (s != null && !s.startsWith("EXITCODE:")) onLog("$s\n")
             }
         }
         val errCallback = object : com.topjohnwu.superuser.CallbackList<String?>() {
-            override fun onAddElement(s: String?) {
-                s?.let { onLog("⚠️ $it\n") }
-            }
+            override fun onAddElement(s: String?) { s?.let { onLog("⚠️ $it\n") } }
         }
-        return Shell.cmd(cmd).to(outCallback, errCallback).exec()
+        val result = Shell.cmd(fullCmd).to(outCallback, errCallback).exec()
+        val codeLine = result.out.lastOrNull { it.startsWith("EXITCODE:") }
+        val code = codeLine?.removePrefix("EXITCODE:")?.toIntOrNull() ?: result.code
+        val stderr = result.err.joinToString("\n")
+        return Triple(code, "", stderr)
     }
+
+    // --- Simple exec helpers ---
+
+    fun exec(cmd: String): Boolean = Shell.cmd("su -c '$cmd'").exec().isSuccess
+
+    fun execGetOutput(cmd: String): String =
+        Shell.cmd("su -c '$cmd'").exec().out.joinToString("\n").trim()
+
+    private fun execWithResult(cmd: String): Shell.Result = Shell.cmd("su -c '$cmd'").exec()
 }

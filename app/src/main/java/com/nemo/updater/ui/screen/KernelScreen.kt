@@ -96,7 +96,7 @@ fun KernelScreen() {
                                 log = ""
 
                                 val engine = FlashEngine
-                                engine.init()
+                                engine.ensureReady()
 
                                 // Copy file to temp
                                 val fileUri = selectedUri
