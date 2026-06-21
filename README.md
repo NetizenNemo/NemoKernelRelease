@@ -35,14 +35,15 @@ KernelFlasher 的内核刷写能力本身有两种安装模式：
 
 > 🔗 **在线模式默认源**：<https://github.com/NetizenNemo/NemoKernelRelease>
 >
-> 这是项目绑定的内核发布仓库，App 启动后会自动连接该仓库检查最新 Release。
-> 你也可以在设置中修改为你自己的内核发布仓库。
+> App 启动后会自动检查本仓库的 GitHub Releases 获取最新内核。
+> 你也可以在设置中修改为其他内核发布仓库。
 
 ### 在线模式（推荐）
 
-默认连接到 [NetizenNemo/NemoKernelRelease](https://github.com/NetizenNemo/NemoKernelRelease) 获取最新内核 Release。
+打开 App，首页自动检查本仓库（NemoKernelRelease）的最新 Release：
 
-1. 打开 App，首页自动检查 NemoKernelRelease 仓库的最新 Release
+1. App 自动拉取仓库最新 Release 列表
+2. 预览 Release 中的内核镜像文件信息（版本、大小、构建日期等）
 2. 预览 Release 中的内核镜像文件信息（版本、大小、构建日期等）
 3. 点击「下载并刷写」— 下载、校验、刷写一气呵成
 4. 你也可以在「设置」中更换为其他 GitHub 内核发布仓库
@@ -83,8 +84,8 @@ KernelFlasher 的内核刷写能力本身有两种安装模式：
 ### 克隆 & 构建
 
 ```bash
-git clone https://github.com/NetizenNemo/KernelFlasher.git
-cd KernelFlasher
+git clone https://github.com/NetizenNemo/NemoKernelRelease.git
+cd NemoKernelRelease
 
 # 调试构建
 ./gradlew assembleDebug
