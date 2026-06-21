@@ -67,11 +67,16 @@ object FlashEngine {
         else FlashResult(false, "Backup failed: ${r.err.joinToString("\n")}")
     }
 
-    fun flashKernel(filePath: String, bootPartition: BootPartition, onLog: (String) -> Unit = {}): FlashResult {
+    fun flashKernel(
+        context: android.content.Context,
+        filePath: String,
+        bootPartition: BootPartition,
+        onLog: (String) -> Unit = {},
+    ): FlashResult {
         if (!File(filePath).exists()) return FlashResult(false, "文件不存在: $filePath")
         ensureReady()
         return if (filePath.endsWith(".zip", ignoreCase = true))
-            flashAk3Zip(filePath, bootPartition, onLog)
+            flashAk3Zip(context, filePath, bootPartition, onLog)
         else
             flashRawImg(filePath, bootPartition, onLog)
     }
@@ -79,7 +84,7 @@ object FlashEngine {
     /**
      * AK3 flash: extract update-binary from zip, run it with sh via libsu.
      */
-    private fun flashAk3Zip(zipPath: String, bootPartition: BootPartition, onLog: (String) -> Unit): FlashResult {
+    private fun flashAk3Zip(context: android.content.Context, zipPath: String, bootPartition: BootPartition, onLog: (String) -> Unit): FlashResult {
         val workDir = "$NINC_DIR/ak3"
         su("rm -rf $workDir && mkdir -p $workDir")
 
@@ -88,10 +93,12 @@ object FlashEngine {
             val zip = java.util.zip.ZipFile(zipPath)
             val entry = zip.getEntry("META-INF/com/google/android/update-binary")
                 ?: return FlashResult(false, "AK3 包缺少 update-binary")
-            val ubFile = File(workDir, "update-binary")
+            // Write to app cache dir (app process has permission), then cp via root
+            val cacheDir = File(context.cacheDir, "ninc/ak3").also { it.mkdirs() }
+            val ubFile = File(cacheDir, "update-binary")
             zip.getInputStream(entry).use { i -> ubFile.outputStream().use { o -> i.copyTo(o) } }
             zip.close()
-            su("chmod 755 $workDir/update-binary")
+            su("cp -f ${ubFile.absolutePath} $workDir/update-binary && chmod 755 $workDir/update-binary")
         } catch (e: Exception) {
             return FlashResult(false, "提取失败: ${e.message}")
         }

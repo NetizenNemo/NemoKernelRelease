@@ -151,6 +151,7 @@ fun KernelScreen() {
                                 val result = withContext(Dispatchers.IO) {
                                     val sb = StringBuilder()
                                     engine.flashKernel(
+                                        context = context,
                                         filePath = tempPath,
                                         bootPartition = bootPartition,
                                         onLog = { sb.append(it) },
