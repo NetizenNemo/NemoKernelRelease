@@ -44,7 +44,6 @@ KernelFlasher 的内核刷写能力本身有两种安装模式：
 
 1. App 自动拉取仓库最新 Release 列表
 2. 预览 Release 中的内核镜像文件信息（版本、大小、构建日期等）
-2. 预览 Release 中的内核镜像文件信息（版本、大小、构建日期等）
 3. 点击「下载并刷写」— 下载、校验、刷写一气呵成
 4. 你也可以在「设置」中更换为其他 GitHub 内核发布仓库
 
@@ -69,6 +68,57 @@ KernelFlasher 的内核刷写能力本身有两种安装模式：
 | Root 权限 | **必须** — 刷写分区需要 root 或 Magisk/KernelSU 授权 |
 | 空闲存储 | 至少 50MB（下载及备份用） |
 | 网络（在线模式） | 可用互联网连接 |
+
+---
+
+## 📡 Release 通道（在线模式）
+
+### 通道机制
+
+Git Release **Tag 前缀**来区分不同设备/架构的内核通道。App 启动后自动检测设备型号，只拉取匹配的 Release。
+
+### Tag 命名规范
+
+```
+<设备代号>-<语义版本号>
+```
+
+例如：
+
+| Tag | 通道 | 说明 |
+|-----|------|------|
+| `nemo-a-v1.0` | Nemo-A 设备稳定版 | 适用于 Nemo-A 手机的内核 v1.0 |
+| `nemo-a-v1.1` | Nemo-A 设备稳定版 | 适用于 Nemo-A 手机的内核 v1.1 |
+| `nemo-b-v2.0` | Nemo-B 设备稳定版 | 适用于 Nemo-B 手机的内核 v2.0 |
+| `nemo-b-v3.0-rc1` | Nemo-B 设备候选版 | rc/beta/alpha 后缀自动归为测试通道 |
+
+> 💡 你可以在 Release Body 中附加设备代号标签（如 `device: nemo-a`），App 会优先解析 tag 前缀，同时支持 fallback 到 Body 元数据。
+
+### 设备自动识别
+
+App 读取以下 Android 系统属性来自动匹配通道：
+
+| 属性 | 用途 |
+|------|------|
+| `ro.product.board` | 主板/平台名 |
+| `ro.product.device` | 设备代号 |
+| `ro.build.product` | 产品名 |
+
+匹配优先级：`ro.product.device` > `ro.product.board` > `ro.build.product`。
+
+### 发布新内核示例
+
+```bash
+# 为 Nemo-A 发布 v1.0 内核
+git tag nemo-a-v1.0
+git push origin nemo-a-v1.0
+
+# 为 Nemo-B 发布 v2.0 候选版
+git tag nemo-b-v2.0-rc1
+git push origin nemo-b-v2.0-rc1
+```
+
+然后在 GitHub 上为 tag 创建 Release，上传对应内核镜像文件即可。
 
 ---
 
