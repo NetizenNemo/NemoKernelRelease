@@ -106,18 +106,42 @@ object FlashEngine {
         bootPartition: BootPartition,
         onLog: (String) -> Unit,
     ): FlashResult {
-        val akDir = "$NINC_DIR/ak3"
         init()
+        val akDir = File("$NINC_DIR/ak3")
+        akDir.mkdirs()
 
         onLog("📦 解析 AK3 压缩包...\n")
 
-        // Unzip
-        val unzipResult = execWithResult(
-            "unzip -o $zipPath -d $akDir 2>/dev/null || " +
-            "busybox unzip -o $zipPath -d $akDir 2>/dev/null"
-        )
-        if (!unzipResult.isSuccess) {
-            return FlashResult(false, "解压 AK3 失败: ${unzipResult.err.joinToString("\n")}")
+        // Extract zip using Java's built-in ZipFile (no external unzip needed)
+        val extractOk = try {
+            val zipFile = java.util.zip.ZipFile(zipPath)
+            var count = 0
+            val entries = zipFile.entries()
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+                val targetFile = File(akDir, entry.name)
+                if (entry.isDirectory) {
+                    targetFile.mkdirs()
+                } else {
+                    targetFile.parentFile?.mkdirs()
+                    zipFile.getInputStream(entry).use { input ->
+                        targetFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    count++
+                }
+            }
+            zipFile.close()
+            onLog("✅ 解压完成: $count 个文件\n")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "unzip failed", e)
+            onLog("❌ 解压失败: ${e.message}\n")
+            false
+        }
+        if (!extractOk) {
+            return FlashResult(false, "解压 AK3 失败")
         }
 
         // Verify key files exist
