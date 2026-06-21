@@ -1,4 +1,4 @@
-# KernelFlasher — Android 内核刷写工具
+# NINC
 
 一个轻量、开源的 Android 内核刷写 App。支持两种方式获取内核镜像：
 
