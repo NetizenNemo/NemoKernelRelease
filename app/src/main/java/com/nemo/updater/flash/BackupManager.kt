@@ -19,7 +19,7 @@ object BackupManager {
      * Ensure backup dir exists (via root shell)
      */
     fun ensureDir(): Boolean {
-        return FlashEngine.exec("mkdir -p $BACKUP_DIR && chmod 755 $BACKUP_DIR")
+        return FlashEngine.su("mkdir -p $BACKUP_DIR && chmod 755 $BACKUP_DIR")
     }
 
     /**
@@ -35,7 +35,7 @@ object BackupManager {
      * List all available backups
      */
     fun listBackups(): List<String> {
-        val out = FlashEngine.execGetOutput("ls -1 $BACKUP_DIR/*.img 2>/dev/null")
+        val out = FlashEngine.suOut("ls -1 $BACKUP_DIR/*.img 2>/dev/null")
         return out.lines().filter { it.isNotBlank() }.sortedDescending()
     }
 
@@ -43,9 +43,7 @@ object BackupManager {
      * Get size of a backup file via root
      */
     fun getBackupSize(): Long {
-        val sizes = FlashEngine.execGetOutput(
-            "du -cb $BACKUP_DIR/*.img 2>/dev/null | tail -1 | cut -f1"
-        )
+        val sizes = FlashEngine.suOut("du -cb $BACKUP_DIR/*.img 2>/dev/null | tail -1 | cut -f1")
         return sizes.toLongOrNull() ?: 0
     }
 
@@ -53,6 +51,6 @@ object BackupManager {
      * Delete a backup file
      */
     fun deleteBackup(path: String): Boolean {
-        return FlashEngine.exec("rm -f '$path'")
+        return FlashEngine.su("rm -f '$path'")
     }
 }
