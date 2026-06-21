@@ -74,13 +74,13 @@ fun KernelScreen() {
                     Spacer(Modifier.height(12.dp))
 
                     MiuixButton(
-                        onClick = { filePicker.launch("image/*") },
+                        onClick = { filePicker.launch("application/zip") },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isFlashing,
                     ) {
                         Text(
                             if (selectedFile != null) "已选: ${selectedFile?.substringAfterLast('/')}"
-                            else "选择内核镜像 (.img)"
+                            else "选择 AK3 压缩包 (.zip)"
                         )
                     }
 
@@ -91,50 +91,74 @@ fun KernelScreen() {
                             scope.launch {
                                 isFlashing = true
                                 flashResult = null
-                                log = "准备刷写...\n"
+                                log = ""
 
                                 val engine = FlashEngine
+                                engine.init()
+
+                                // Copy file to temp
+                                val filePath = selectedFile
+                                if (filePath == null) {
+                                    log += "❌ 未选择文件\n"
+                                    flashResult = FlashResult(false, "未选择文件")
+                                    isFlashing = false
+                                    return@launch
+                                }
+
+                                log += "📦 复制文件到临时目录...\n"
+                                val tempPath = withContext(Dispatchers.IO) {
+                                    engine.copyToTemp(filePath)
+                                }
+                                if (tempPath == null) {
+                                    log += "❌ 文件复制失败\n"
+                                    flashResult = FlashResult(false, "文件复制失败")
+                                    isFlashing = false
+                                    return@launch
+                                }
+                                log += "✅ $tempPath\n\n"
+
+                                // Detect boot partition
+                                log += "🔍 检测 boot 分区...\n"
                                 val bootPartition = withContext(Dispatchers.IO) {
                                     engine.detectBootPartition()
                                 }
-
                                 if (bootPartition == null) {
                                     log += "❌ 未检测到 boot 分区\n"
                                     flashResult = FlashResult(false, "未检测到 boot 分区")
                                     isFlashing = false
                                     return@launch
                                 }
+                                log += "📌 ${bootPartition.blockPath}\n"
+                                log += if (bootPartition.isAb) "📌 A/B 设备, 槽位: ${bootPartition.slotSuffix}\n" else ""
+                                log += "\n"
 
-                                log += "Boot 分区: ${bootPartition.blockPath}\n"
-                                log += "备份当前内核...\n"
-
+                                // Auto backup
+                                log += "💾 备份当前内核...\n"
                                 val backupPath = BackupManager.generateBackupPath()
                                 val backupResult = withContext(Dispatchers.IO) {
                                     engine.backupBoot(bootPartition, backupPath)
                                 }
-
-                                if (!backupResult.success) {
-                                    log += "❌ 备份失败: ${backupResult.message}\n"
-                                    flashResult = backupResult
-                                    isFlashing = false
-                                    return@launch
+                                if (backupResult.success) {
+                                    log += "✅ 备份: $backupPath\n\n"
+                                } else {
+                                    log += "⚠️ 备份失败，继续刷写: ${backupResult.message}\n\n"
                                 }
-                                log += "✅ 备份: $backupPath\n\n"
 
-                                log += "开始刷写...\n"
+                                // Flash (auto-detects AK3 zip vs raw img)
+                                log += "⚙️ 开始刷写...\n"
                                 val result = withContext(Dispatchers.IO) {
-                                    var currentLog = ""
-                                    engine.flashBoot(
-                                        imagePath = selectedFile ?: return@withContext FlashResult(false, "未选择文件"),
+                                    val sb = StringBuilder()
+                                    engine.flashKernel(
+                                        filePath = tempPath,
                                         bootPartition = bootPartition,
-                                        onLog = { line -> currentLog += "$line\n" }
+                                        onLog = { sb.append(it) },
                                     )
                                 }
 
-                                log += if (result.success) {
-                                    "✅ 刷写成功！${if (result.showReboot) "建议重启" else ""}\n"
-                                } else {
-                                    "❌ 刷写失败: ${result.message}\n"
+                                log += "\n${if (result.success) "✅ 刷写成功！" else "❌ 刷写失败"}\n"
+                                log += result.message + "\n"
+                                if (result.showReboot) {
+                                    log += "\n🔄 建议重启设备以生效"
                                 }
                                 flashResult = result
                                 isFlashing = false
