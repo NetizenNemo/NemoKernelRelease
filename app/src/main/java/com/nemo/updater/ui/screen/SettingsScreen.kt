@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.nemo.updater.flash.BackupManager
 import com.nemo.updater.ui.theme.AppThemeMode
 import top.yukonga.miuix.kmp.basic.Card
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
@@ -29,7 +30,7 @@ fun SettingsScreen() {
     var autoBackup by remember { mutableStateOf(true) }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().statusBarsPadding(),
     ) {
         item {
             TopAppBar(title = "设置")
