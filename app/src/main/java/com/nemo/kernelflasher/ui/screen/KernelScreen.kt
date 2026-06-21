@@ -27,7 +27,7 @@ fun KernelScreen() {
         ) {
             Text(
                 text = "在线 Release & 本地文件",
-                style = MiuixTheme.textStyles.body,
+                style = MiuixTheme.textStyles.body1,
             )
         }
     }

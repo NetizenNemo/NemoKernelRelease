@@ -27,7 +27,7 @@ fun SettingsScreen() {
         ) {
             Text(
                 text = "刷写历史 / 备份管理 / 配置",
-                style = MiuixTheme.textStyles.body,
+                style = MiuixTheme.textStyles.body1,
             )
         }
     }

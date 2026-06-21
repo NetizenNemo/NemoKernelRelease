@@ -7,8 +7,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.nemo.kernelflasher.ui.theme.rememberAcrylicHazeState
-import com.nemo.kernelflasher.ui.theme.rememberAcrylicHazeStyle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -29,7 +27,7 @@ fun HomeScreen() {
         ) {
             Text(
                 text = "设备信息 & 快速操作",
-                style = MiuixTheme.textStyles.body,
+                style = MiuixTheme.textStyles.body1,
             )
         }
     }

@@ -2,6 +2,7 @@ package com.nemo.kernelflasher
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -25,9 +26,7 @@ import com.nemo.kernelflasher.ui.screen.HomeScreen
 import com.nemo.kernelflasher.ui.screen.KernelScreen
 import com.nemo.kernelflasher.ui.screen.SettingsScreen
 import com.nemo.kernelflasher.ui.theme.AppTheme
-import dagger.hilt.android.AndroidEntryPoint
 
-@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -1,6 +1,6 @@
 package com.nemo.kernelflasher.ui.navigation
 
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,13 +17,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -31,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -38,12 +38,10 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
-import com.nemo.kernelflasher.ui.theme.rememberAcrylicHazeState
-import com.nemo.kernelflasher.ui.theme.rememberAcrylicHazeStyle
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * Apple 风格悬浮底栏
+ * Apple 风格悬浮底栏，使用 Backdrop API 实现液态玻璃效果
  */
 @Composable
 fun FloatingNavigationBar(
@@ -61,18 +59,14 @@ fun FloatingNavigationBar(
     val accentColor = MiuixTheme.colorScheme.primary
     val contentColor = MiuixTheme.colorScheme.onSurface
 
-    val animProgress = remember { Animatable(0f) }
-    LaunchedEffect(selectedTab) {
-        animProgress.snapTo(0f)
-        animProgress.animateTo(1f, animationSpec = tween(300))
-    }
+    val backdrop = rememberLayerBackdrop()
 
     Box(
         modifier = modifier
             .padding(horizontal = 24.dp, vertical = 8.dp)
             .height(64.dp)
             .drawBackdrop(
-                backdrop = Backdrop(),
+                backdrop = backdrop,
                 shape = { ContinuousCapsule },
                 effects = {
                     if (isBlurEnabled) {
@@ -124,6 +118,11 @@ private fun RowScope.FloatingNavItem(
     contentColor: Color,
 ) {
     val itemColor = if (selected) accentColor else contentColor.copy(alpha = 0.6f)
+    val bgAlpha by animateFloatAsState(
+        targetValue = if (selected) 0.15f else 0f,
+        animationSpec = tween(200),
+        label = "itemBg",
+    )
 
     Box(
         modifier = Modifier
@@ -132,9 +131,7 @@ private fun RowScope.FloatingNavItem(
             .clip(RoundedCornerShape(12.dp))
             .then(
                 if (selected) {
-                    Modifier
-                        .background(accentColor.copy(alpha = 0.15f))
-                        .graphicsLayer { alpha = 1f }
+                    Modifier.background(accentColor.copy(alpha = bgAlpha))
                 } else {
                     Modifier
                 }
