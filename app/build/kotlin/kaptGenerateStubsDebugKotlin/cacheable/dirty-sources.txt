@@ -1,9 +1,0 @@
-G:\NeoCenter\app\src\main\java\com\nemo\kernelflasher\MainActivity.kt
-G:\NeoCenter\app\src\main\java\com\nemo\kernelflasher\ui\screen\KernelScreen.kt
-G:\NeoCenter\app\src\main\java\com\nemo\kernelflasher\ui\screen\SettingsScreen.kt
-G:\NeoCenter\app\src\main\java\com\nemo\kernelflasher\ui\navigation\NavTab.kt
-G:\NeoCenter\app\src\main\java\com\nemo\kernelflasher\ui\theme\Acrylic.kt
-G:\NeoCenter\app\src\main\java\com\nemo\kernelflasher\ui\theme\Theme.kt
-G:\NeoCenter\app\src\main\java\com\nemo\kernelflasher\KernelFlasherApp.kt
-G:\NeoCenter\app\src\main\java\com\nemo\kernelflasher\ui\screen\HomeScreen.kt
-G:\NeoCenter\app\src\main\java\com\nemo\kernelflasher\ui\navigation\FloatingNavigationBar.kt

@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="kernelflasher_background">#FFFFFF</color>
-    <color name="kernelflasher_on_primary">#FFFFFF</color>
-    <color name="kernelflasher_primary">#1976D2</color>
-    <string name="app_name">NemoKernel</string>
-    <style name="Theme.NemoKernelRelease" parent="android:Theme.Material.Light.NoActionBar"/>
-</resources>

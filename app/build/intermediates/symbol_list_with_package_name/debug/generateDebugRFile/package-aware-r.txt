@@ -1,9 +1,0 @@
-com.nemo.kernelflasher
-color kernelflasher_background
-color kernelflasher_on_primary
-color kernelflasher_primary
-drawable ic_launcher_background
-drawable ic_launcher_foreground
-mipmap ic_launcher
-string app_name
-style Theme_NemoKernelRelease

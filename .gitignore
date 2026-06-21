@@ -16,3 +16,6 @@ local.properties
 # Reasonix agent internals
 .reasonix/
 SKILL.md
+
+# Build artifacts
+app/build/
